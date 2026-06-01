@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MantraHilling Background Audio Engine</title>
+  <style>
+    body {
+      background: #080514;
+      color: rgba(255, 255, 255, 0.3);
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      font-size: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h3 style="color: #a78bfa; margin-bottom: 5px;">MantraHilling Audio Synthesizer</h3>
+    <p id="status">Engine Idle</p>
+  </div>
+
+  <script>
+    // System-wide Audio Context, background audio player, and Active Nodes list
+    let ctx = null;
+    let bgAudio = null;
+    let activeNodes = [];
+    let currentVolume = 0.28;
+
+    const logToApp = (msg) => {
+      console.log("[AudioEngine] " + msg);
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', message: msg }));
+      }
+    };
+
+    // Get or initialize AudioContext
+    const getCtx = () => {
+      if (!ctx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        ctx = new AudioContextClass();
+        logToApp("AudioContext created successfully");
+      }
+      if (ctx.state === "suspended") {
+        ctx.resume();
+        logToApp("AudioContext resumed");
+      }
+      return ctx;
+    };
+
+    // Gracefully fade out and stop all active oscillators and audio players
+    const stopAll = (fadeSecs = 0.6) => {
+      if (bgAudio) {
+        try {
+          bgAudio.pause();
+          bgAudio.src = "";
+        } catch (e) {
+          logToApp("Error stopping background audio: " + e.message);
+        }
+      }
+      if (!ctx || !activeNodes.length) return;
+      const now = ctx.currentTime;
+      logToApp(`Fading out ${activeNodes.length} nodes over ${fadeSecs}s...`);
+
+      activeNodes.forEach(({ osc, gain }) => {
+        try {
+          if (gain && gain.gain) {
+            gain.gain.setTargetAtTime(0, now, fadeSecs / 4);
+          }
+          setTimeout(() => {
+            try {
+              if (osc && typeof osc.stop === 'function') {
+                osc.stop();
+              }
+            } catch (_) {}
+          }, fadeSecs * 1000 + 100);
+        } catch (e) {
+          logToApp("Error stopping node: " + e.message);
+        }
+      });
+      activeNodes = [];
+      document.getElementById('status').innerText = "Engine Idle";
+    };
+
+    // Create a binaural pair: left ear at hz, right ear at hz + delta
+    const addBinauralPair = (context, hz, delta, masterGain, vol, wave = "sine") => {
+      const now = context.currentTime;
+      const merger = context.createChannelMerger(2);
+      merger.connect(masterGain);
+
+      ["L", "R"].forEach((ch, i) => {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        osc.type = wave;
+        osc.frequency.setValueAtTime(i === 0 ? hz : hz + delta, now);
+        gain.gain.setValueAtTime(vol, now);
+        osc.connect(gain);
+        
+        // Connect left oscillator to channel 0, right to channel 1
+        gain.connect(merger, 0, i);
+        osc.start(now);
+        activeNodes.push({ osc, gain });
+      });
+      logToApp(`Added Binaural Pair: L=${hz}Hz, R=${hz + delta}Hz`);
+    };
+
+    // Create a regular mono oscillator
+    const addMono = (context, hz, vol, wave = "sine", fadeIn = 1.0, destination = null) => {
+      const now = context.currentTime;
+      const osc = context.createOscillator();
+      const gain = context.createGain();
+      osc.type = wave;
+      osc.frequency.setValueAtTime(hz, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.setTargetAtTime(vol, now, fadeIn / 3);
+      
+      osc.connect(gain);
+      gain.connect(destination || context.destination);
+      osc.start(now);
+      
+      activeNodes.push({ osc, gain });
+      logToApp(`Added Mono Voice: ${hz}Hz (${wave})`);
+    };
+
+    // Play full layered sound for a wellness condition
+    const playCondition = (condition, volumeLevel = 0.28, binauralOn = true) => {
+      stopAll(0.3);
+      
+      if (!condition || !condition.freqs || !condition.freqs.length) {
+        logToApp("Error: Invalid condition data");
+        return;
+      }
+
+      // Play background audio track from R2 if set
+      if (condition.audio_url) {
+        logToApp("Loading audio track: " + condition.audio_url);
+        try {
+          if (!bgAudio) {
+            bgAudio = new Audio();
+            bgAudio.loop = true;
+          }
+          bgAudio.src = condition.audio_url;
+          bgAudio.volume = volumeLevel;
+          bgAudio.play().catch(err => {
+            logToApp("Audio playback error: " + err.message);
+          });
+        } catch (e) {
+          logToApp("Error setting up background audio: " + e.message);
+        }
+      }
+
+      const context = getCtx();
+      const now = context.currentTime;
+      currentVolume = volumeLevel;
+
+      const hz = condition.freqs[0].hz;
+      const delta = binauralOn ? (condition.binaural || 0) : 0;
+      
+      logToApp(`Playing condition: ${condition.title} | Primary Hz: ${hz} | Binaural Delta: ${delta}Hz`);
+      document.getElementById('status').innerText = `Synthesizing ${condition.title} (${hz}Hz)`;
+
+      // Master volume node
+      const master = context.createGain();
+      master.gain.setValueAtTime(0, now);
+      master.gain.setTargetAtTime(volumeLevel, now, 1.0); // 1s fade-in curve
+      master.connect(context.destination);
+
+      // 1. Primary healing frequency (Binaural or Mono)
+      if (binauralOn && delta > 0) {
+        addBinauralPair(context, hz, delta, master, 0.9);
+      } else {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(hz, now);
+        gain.gain.setValueAtTime(0.9, now);
+        osc.connect(gain);
+        gain.connect(master);
+        osc.start(now);
+        activeNodes.push({ osc, gain });
+      }
+
+      // 2. Sub-octave drone (grounding warmth triangle wave)
+      if (hz > 20) {
+        const subHz = hz / 2;
+        addMono(context, subHz, 0.18, "triangle", 1.5, master);
+      }
+
+      // 3. Shimmer (fifth harmonic sine layer, very soft)
+      if (hz > 10) {
+        const shimHz = hz * 1.5;
+        addMono(context, shimHz, 0.06, "sine", 2.0, master);
+      }
+
+      // 4. Detuned chorus voice (2 cents sharp for acoustic width)
+      const detHz = hz * 1.0012;
+      addMono(context, detHz, 0.08, "sine", 1.8, master);
+
+      // Store master gain node to allow master volume adjustments
+      activeNodes.push({ osc: { stop: () => {} }, gain: master });
+    };
+
+    // Play single frequency (for individual Solfeggio or session frequency clicks)
+    const playOne = (hz, volumeLevel = 0.25, binauralDelta = 10, audioUrl = null) => {
+      stopAll(0.2);
+
+      // Play background audio track from R2 if set
+      if (audioUrl) {
+        logToApp("Loading solfeggio track: " + audioUrl);
+        try {
+          if (!bgAudio) {
+            bgAudio = new Audio();
+            bgAudio.loop = true;
+          }
+          bgAudio.src = audioUrl;
+          bgAudio.volume = volumeLevel;
+          bgAudio.play().catch(err => {
+            logToApp("Audio playback error: " + err.message);
+          });
+        } catch (e) {
+          logToApp("Error setting up solfeggio background audio: " + e.message);
+        }
+      }
+
+      const context = getCtx();
+      const now = context.currentTime;
+      currentVolume = volumeLevel;
+
+      logToApp(`Playing single frequency: ${hz}Hz | Binaural Delta: ${binauralDelta}Hz`);
+      document.getElementById('status').innerText = `Synthesizing ${hz}Hz`;
+
+      const master = context.createGain();
+      master.gain.setValueAtTime(0, now);
+      master.gain.setTargetAtTime(volumeLevel, now, 0.3);
+      master.connect(context.destination);
+
+      if (binauralDelta > 0) {
+        addBinauralPair(context, hz, binauralDelta, master, 0.9);
+      } else {
+        const osc = context.createOscillator();
+        const gain = context.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(hz, now);
+        gain.gain.setValueAtTime(0.9, now);
+        
+        osc.connect(gain);
+        gain.connect(master);
+        osc.start(now);
+        activeNodes.push({ osc, gain });
+      }
+
+      activeNodes.push({ osc: { stop: () => {} }, gain: master });
+    };
+
+    // Update volume in real-time
+    const setMasterVolume = (vol) => {
+      currentVolume = vol;
+      logToApp(`Setting volume to ${vol}`);
+      if (bgAudio) {
+        try {
+          bgAudio.volume = vol;
+        } catch (e) {
+          logToApp("Error updating background audio volume: " + e.message);
+        }
+      }
+      if (!ctx) return;
+      activeNodes.forEach(({ gain }) => {
+        try {
+          if (gain && gain.gain) {
+            gain.gain.setTargetAtTime(vol, ctx.currentTime, 0.1);
+          }
+        } catch (e) {
+          logToApp("Error setting volume node: " + e.message);
+        }
+      });
+    };
+
+    // Message receiver from React Native
+    window.addEventListener('message', (event) => {
+      try {
+        logToApp("Message received: " + event.data);
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+          case 'PLAY_CONDITION':
+            playCondition(data.condition, data.volume, data.binauralOn);
+            break;
+          case 'PLAY_ONE':
+            playOne(data.hz, data.volume, data.binauralDelta, data.audioUrl);
+            break;
+          case 'STOP_ALL':
+            stopAll(data.fadeSecs || 0.5);
+            break;
+          case 'SET_VOLUME':
+            setMasterVolume(data.volume);
+            break;
+          case 'PING':
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'PONG' }));
+            }
+            break;
+          default:
+            logToApp("Unknown event type: " + data.type);
+        }
+      } catch (e) {
+        logToApp("Error processing postMessage: " + e.message);
+      }
+    });
+
+    logToApp("Synthesizer engine loaded and listening for commands");
+
+  </script>
+</body>
+</html>

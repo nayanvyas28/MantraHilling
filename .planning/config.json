@@ -1,0 +1,10 @@
+{
+  "project_name": "MantraHilling",
+  "version": "1.0.0",
+  "gsd_version": "1.5.0",
+  "active_milestone": 1,
+  "profiles": {
+    "development": "balanced",
+    "deployment": "vercel"
+  }
+}

@@ -5035,7 +5035,7 @@ function MainApp() {
     return (
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: isDark ? "#080514" : "#F5F3FF" }}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <LinearGradient colors={authBg} style={[styles.fullscreen, { height: "100%" }]}>
@@ -5291,10 +5291,10 @@ function MainApp() {
 
   if (!user && !isGuest) {
     return (
-      <>
+      <View style={{ flex: 1, backgroundColor: isDark ? "#080514" : "#F5F3FF" }}>
         <StatusBar barStyle="light-content" backgroundColor="#080514" />
         {renderAuthScreen()}
-      </>
+      </View>
     );
   }
 

@@ -669,14 +669,22 @@ function MainApp() {
 
   // Auto-fill OTP from Clipboard helper function
   const triggerClipboardCheck = React.useCallback(async (isManual = false) => {
-    if (!isOtpSent) return;
+    if (!isOtpSent) {
+      console.log("[Clipboard Debug] triggerClipboardCheck skipped because isOtpSent is false.");
+      return;
+    }
+    console.log("[Clipboard Debug] triggerClipboardCheck invoked. isManual:", isManual);
     try {
       const text = await Clipboard.getStringAsync();
+      console.log("[Clipboard Debug] Clipboard raw content read:", JSON.stringify(text));
       if (text) {
-        // Match any 6-digit number in the text (e.g. from the WhatsApp message)
-        const match = text.match(/\b\d{6}\b/);
+        const trimmedText = text.trim();
+        // Match any 6-digit number that is not part of a longer digit sequence
+        const match = trimmedText.match(/(?:^|[^\d])(\d{6})(?:[^\d]|$)/);
+        console.log("[Clipboard Debug] Regex match result:", match);
         if (match) {
-          const code = match[0];
+          const code = match[1]; // Get capture group 1
+          console.log("[Clipboard Debug] Found OTP code:", code);
           setOtpInput(code);
           setOtpBannerMessage(
             lang === "hi" 
@@ -686,6 +694,7 @@ function MainApp() {
           return;
         }
       }
+      console.log("[Clipboard Debug] No valid 6-digit OTP code found in clipboard.");
       if (isManual === true) {
         Alert.alert(
           lang === "hi" ? "ओटीपी नहीं मिला" : "No OTP Found",
@@ -695,7 +704,7 @@ function MainApp() {
         );
       }
     } catch (err) {
-      console.warn("Clipboard reading error:", err.message);
+      console.warn("[Clipboard Debug] Clipboard reading error:", err.message);
       if (isManual === true) {
         Alert.alert(
           lang === "hi" ? "त्रुटि" : "Error",

@@ -1811,7 +1811,7 @@ export default function Home() {
 
                 {/* Category Filtering Tab Bar */}
                 <div className="flex flex-wrap gap-2.5 pb-4 border-b border-white/5">
-                  {["All", "Mental", "Physical", "Chronic", "Endocrine", "Emotional", "Cardiovascular Disease"].map((cat) => {
+                  {["All", ...getCategoriesList().filter(c => c !== "Metadata")].map((cat) => {
                     const isActive = selectedAdminCat === cat;
                     const catLabels = {
                       All: "All Sanctuaries 🌐",
@@ -1854,7 +1854,7 @@ export default function Home() {
                     }
 
                     const catsToRender = selectedAdminCat === "All"
-                      ? ["Mental", "Physical", "Chronic", "Endocrine", "Emotional", "Cardiovascular Disease"]
+                      ? getCategoriesList().filter(c => c !== "Metadata")
                       : [selectedAdminCat];
 
                     return catsToRender.map((catKey) => {

@@ -668,7 +668,7 @@ function MainApp() {
   };
 
   // Auto-fill OTP from Clipboard helper function
-  const triggerClipboardCheck = React.useCallback(async () => {
+  const triggerClipboardCheck = React.useCallback(async (isManual = false) => {
     if (!isOtpSent) return;
     try {
       const text = await Clipboard.getStringAsync();
@@ -683,10 +683,27 @@ function MainApp() {
               ? "✓ क्लिपबोर्ड से ओटीपी ऑटो-फिल किया गया!" 
               : "✓ OTP auto-filled from clipboard!"
           );
+          return;
         }
+      }
+      if (isManual === true) {
+        Alert.alert(
+          lang === "hi" ? "ओटीपी नहीं मिला" : "No OTP Found",
+          lang === "hi" 
+            ? "क्लिपबोर्ड में कोई 6-अंकीय ओटीपी कोड नहीं मिला। कृपया कोड कॉपी करके पुनः प्रयास करें।" 
+            : "No 6-digit verification code found in your clipboard. Please copy it and try again."
+        );
       }
     } catch (err) {
       console.warn("Clipboard reading error:", err.message);
+      if (isManual === true) {
+        Alert.alert(
+          lang === "hi" ? "त्रुटि" : "Error",
+          lang === "hi"
+            ? "क्लिपबोर्ड पढ़ने में समस्या आई। कृपया कोड स्वयं दर्ज करें।"
+            : "Failed to read clipboard. Please enter the code manually."
+        );
+      }
     }
   }, [isOtpSent, lang]);
 
@@ -5137,15 +5154,36 @@ function MainApp() {
                     placeholderTextColor={colors.inputPlaceholder}
                     value={otpInput}
                     onChangeText={setOtpInput}
-                    onFocus={triggerClipboardCheck}
+                    onFocus={() => triggerClipboardCheck(false)}
                     keyboardType="number-pad"
                     maxLength={6}
                     textContentType="oneTimeCode"
                     autoComplete="sms-otp"
                     importantForAutofill="yes"
                     selectTextOnFocus={true}
-                    style={[styles.authInput, { backgroundColor: colors.inputBg, color: colors.inputText, borderColor: colors.cardBorder, textAlign: "center", fontSize: 18, letterSpacing: 6 }]}
+                    style={[styles.authInput, { backgroundColor: colors.inputBg, color: colors.inputText, borderColor: colors.cardBorder, textAlign: "center", fontSize: 18, letterSpacing: 6, marginBottom: 12 }]}
                   />
+
+                  <TouchableOpacity
+                    onPress={() => triggerClipboardCheck(true)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "rgba(139, 92, 246, 0.08)",
+                      borderWidth: 1,
+                      borderColor: "rgba(139, 92, 246, 0.2)",
+                      borderRadius: 14,
+                      paddingVertical: 10,
+                      paddingHorizontal: 16,
+                      marginBottom: 16,
+                      width: "100%",
+                    }}
+                  >
+                    <Text style={{ color: isDark ? "#00d1ff" : "#8b5cf6", fontSize: 12.5, fontWeight: "600" }}>
+                      📋 {lang === "hi" ? "क्लिपबोर्ड / व्हाट्सएप से ओटीपी पेस्ट करें" : "Paste OTP from Clipboard / WhatsApp"}
+                    </Text>
+                  </TouchableOpacity>
 
                   {authError ? <Text style={styles.authErrorText}>{authError}</Text> : null}
 

@@ -18,8 +18,10 @@ import {
   Image,
   useColorScheme,
   Linking,
-  Alert
+  Alert,
+  AppState
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { WebView } from "react-native-webview";
 import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -664,6 +666,51 @@ function MainApp() {
     border: { borderColor: colors.cardBorder },
     bg: { backgroundColor: colors.bg },
   };
+
+  // Auto-fill OTP from Clipboard when user returns from WhatsApp/Notification
+  useEffect(() => {
+    if (!isOtpSent) return;
+
+    const checkClipboardForOtp = async () => {
+      try {
+        const hasString = await Clipboard.hasStringAsync();
+        if (hasString) {
+          const text = await Clipboard.getStringAsync();
+          if (text) {
+            // Match any 6-digit number in the text (e.g. from the WhatsApp message)
+            const match = text.match(/\b\d{6}\b/);
+            if (match) {
+              const code = match[0];
+              setOtpInput(code);
+              setOtpBannerMessage(
+                lang === "hi" 
+                  ? "✓ क्लिपबोर्ड से ओटीपी ऑटो-फिल किया गया!" 
+                  : "✓ OTP auto-filled from clipboard!"
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Clipboard reading error:", err.message);
+      }
+    };
+
+    // Check clipboard immediately when screen mounts/shows
+    checkClipboardForOtp();
+
+    // Check clipboard when app returns to foreground
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active') {
+        checkClipboardForOtp();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isOtpSent, lang]);
 
   const toggleTheme = async () => {
     const nextTheme = !isDark;

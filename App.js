@@ -667,41 +667,40 @@ function MainApp() {
     bg: { backgroundColor: colors.bg },
   };
 
+  // Auto-fill OTP from Clipboard helper function
+  const triggerClipboardCheck = React.useCallback(async () => {
+    if (!isOtpSent) return;
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (text) {
+        // Match any 6-digit number in the text (e.g. from the WhatsApp message)
+        const match = text.match(/\b\d{6}\b/);
+        if (match) {
+          const code = match[0];
+          setOtpInput(code);
+          setOtpBannerMessage(
+            lang === "hi" 
+              ? "✓ क्लिपबोर्ड से ओटीपी ऑटो-फिल किया गया!" 
+              : "✓ OTP auto-filled from clipboard!"
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("Clipboard reading error:", err.message);
+    }
+  }, [isOtpSent, lang]);
+
   // Auto-fill OTP from Clipboard when user returns from WhatsApp/Notification
   useEffect(() => {
     if (!isOtpSent) return;
 
-    const checkClipboardForOtp = async () => {
-      try {
-        const hasString = await Clipboard.hasStringAsync();
-        if (hasString) {
-          const text = await Clipboard.getStringAsync();
-          if (text) {
-            // Match any 6-digit number in the text (e.g. from the WhatsApp message)
-            const match = text.match(/\b\d{6}\b/);
-            if (match) {
-              const code = match[0];
-              setOtpInput(code);
-              setOtpBannerMessage(
-                lang === "hi" 
-                  ? "✓ क्लिपबोर्ड से ओटीपी ऑटो-फिल किया गया!" 
-                  : "✓ OTP auto-filled from clipboard!"
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Clipboard reading error:", err.message);
-      }
-    };
-
     // Check clipboard immediately when screen mounts/shows
-    checkClipboardForOtp();
+    triggerClipboardCheck();
 
     // Check clipboard when app returns to foreground
     const handleAppStateChange = (nextAppState) => {
       if (nextAppState === 'active') {
-        checkClipboardForOtp();
+        triggerClipboardCheck();
       }
     };
 
@@ -710,7 +709,7 @@ function MainApp() {
     return () => {
       subscription.remove();
     };
-  }, [isOtpSent, lang]);
+  }, [isOtpSent, triggerClipboardCheck]);
 
   const toggleTheme = async () => {
     const nextTheme = !isDark;
@@ -5138,6 +5137,7 @@ function MainApp() {
                     placeholderTextColor={colors.inputPlaceholder}
                     value={otpInput}
                     onChangeText={setOtpInput}
+                    onFocus={triggerClipboardCheck}
                     keyboardType="number-pad"
                     maxLength={6}
                     textContentType="oneTimeCode"

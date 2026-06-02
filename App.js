@@ -5024,6 +5024,9 @@ function MainApp() {
                       onChangeText={setPhone}
                       keyboardType="phone-pad"
                       maxLength={15}
+                      textContentType="telephoneNumber"
+                      autoComplete="tel"
+                      importantForAutofill="yes"
                       style={[
                         styles.authInput,
                         {
@@ -5090,6 +5093,10 @@ function MainApp() {
                     onChangeText={setOtpInput}
                     keyboardType="number-pad"
                     maxLength={6}
+                    textContentType="oneTimeCode"
+                    autoComplete="sms-otp"
+                    importantForAutofill="yes"
+                    selectTextOnFocus={true}
                     style={[styles.authInput, { backgroundColor: colors.inputBg, color: colors.inputText, borderColor: colors.cardBorder, textAlign: "center", fontSize: 18, letterSpacing: 6 }]}
                   />
 
